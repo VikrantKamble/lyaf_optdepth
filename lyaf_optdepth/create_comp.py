@@ -26,7 +26,7 @@ def create_comp(flux, ivar, zqso,
         for j in range(len(rest_wave)):
             mask = np.where(loc_ivar[:, j] > 0)[0]
 
-            if len(mask) > 20:  # else reject points using comp_ivar
+            if len(mask) > 10:  # else reject points using comp_ivar
                 data = loc_flux[:, j][mask]
 
                 # unbiased estimator of the true mean but not the most

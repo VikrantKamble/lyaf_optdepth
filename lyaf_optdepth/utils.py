@@ -118,7 +118,8 @@ def combine_likelihoods(folder_name, indices, xx, yy, ax=None,
         ll = np.loadtxt(folder_name + 'lnlike_%s.dat' % str(index))
         if individual:
             marg_estimates(xx, yy, ll.T, ax=ax,
-                           plot_marg=False, levels=[0.683])
+                           plot_marg=False, levels=[0.683], label=str(index),
+                           colors='k')
         joint_lnlike += ll
     joint_lnlike -= joint_lnlike.max()
 
@@ -127,7 +128,8 @@ def combine_likelihoods(folder_name, indices, xx, yy, ax=None,
     # Remember: Here we are modeling the combined likelihood in x0-x1 as
     # a 2D Gaussian - these are the actual values used for the statistical
     # estiamtes before applying the stretch corrections due to LSS
-    joint_estimates = marg_estimates(xx, yy, joint_lnlike.T, ax=ax, **kwargs)
+    joint_estimates = marg_estimates(xx, yy, joint_lnlike.T, ax=ax,
+                                     label='joint', **kwargs)
 
     return ax, joint_estimates
 

@@ -1,4 +1,3 @@
-import os
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -16,8 +15,8 @@ class binObj:
     optical depth is calculated
     """
 
-    input_calib = os.environ['OPT_DATA'] + config.input_calib
-    input_var_correct = os.environ['OPT_DATA'] + config.input_var_correct
+    input_calib = config.input_calib
+    input_var_correct = config.input_var_correct
 
     def __init__(self, name, qso, par_names, par_ranges, snt, preprocess=True):
 

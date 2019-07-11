@@ -21,7 +21,7 @@ class QSO:
         #     sys.exit("Errors! Couldn't locate section in .ini file")
 
         if data_file is None:
-            self.catalog_file = os.environ['OPT_DATA'] + config.catalog
+            self.catalog_file = config.catalog
         else:
             self.catalog_file = data_file
 
@@ -30,7 +30,7 @@ class QSO:
 
         # tb is the table that has all features of any given spectra
         if attr_file is None:
-            attr_file = os.environ['OPT_DATA'] + config.attr
+            attr_file = config.attr
 
         # store the metadata as a table
         self.tb = fitsio.read(attr_file, ext=-1)

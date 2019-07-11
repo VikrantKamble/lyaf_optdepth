@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import fitsio
+import time
 import emcee
 import os
 from functools import partial
@@ -115,7 +116,6 @@ class Optimizer:
             return -np.inf
         return lp + Optimizer._lnlike(theta, xx, yy, ee, shift, tilt)
 
-    @staticmethod
     def _lngrid_from_trace(self, trace, make_plot):
         extents = {'x0': self.par_limits[1], 'x1': self.par_limits[2]}
 
@@ -241,6 +241,7 @@ class Optimizer:
             os.makedirs(save_path)
         os.chdir(save_path)
 
+        start = time.time()
         if not parallel:
             for index in indices:
                 self._fit_skewer_index(index, **kwargs)
@@ -252,4 +253,5 @@ class Optimizer:
             pool.close()
             pool.join()
 
+        print("Time elapsed: {} seconds".format(time.time() - start))
         os.chdir(curr_dir)
