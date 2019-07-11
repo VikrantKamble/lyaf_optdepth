@@ -3,16 +3,12 @@ import shutil
 import numpy as np
 
 from timeit import default_timer as timer
-from multiprocessing import Pool
+# from multiprocessing import Pool
 from scipy.stats import binned_statistic
-from functools import partial
+# from functools import partial
 
 # local imports
 from lyaf_optdepth import corrections, create_comp
-
-import importlib
-importlib.reload(create_comp)
-from Scripts import comp_simple
 
 
 def find_zbins(z, z_start=2.1, delta_z=None, min_num=50):
