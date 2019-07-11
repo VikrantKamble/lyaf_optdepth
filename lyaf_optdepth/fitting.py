@@ -15,6 +15,22 @@ class Optimizer:
     def __init__(self, shift=None, tilt=None, n_mcmc=5000,
                  burn_frac=40, n_walkers=50, par_limits=None, n_bins=100):
 
+        """ Basic fitting class for optical depth parameter estimation
+
+        Args:
+            shift, tilt (Optional): Parameters that govern the linear
+                transformation between t0-gamma and x0-x1 basis
+            n_mcmc (int, Optional): The number of MCMC steps
+            burn_frac (float, Optional): Fraction of the MCMC steps to
+                discard as burn-in
+            n_walkers (int, Optional): The number of walkers for the
+                affine-invariant ensemble sampler
+            par_limits (Optional): A sequence of 2-tuples for the uniform
+                prior
+            n_bins (int, Optional): Number of grid cells to divide the par_limits
+                for evaluating the likelihood
+
+        """
         if par_limits is None:
             par_limits = [(0, 3), (-10, 10), (-0.5, 0.5)]
 
@@ -101,15 +117,14 @@ class Optimizer:
         return lp + Optimizer._lnlike(theta, xx, yy, ee, shift, tilt)
 
     @staticmethod
-    def _lngrid_from_trace(trace, par_limits, n_bins, make_plot):
-        extents = {'x0': par_limits[0], 'x1': par_limits[1]}
+    def _lngrid_from_trace(self, trace, make_plot):
+        extents = {'x0': self.par_limits[1], 'x1': self.par_limits[2]}
+
         samps = MCSamples(samples=trace, names=['x0', 'x1'], ranges=extents)
         density = samps.get2DDensity('x0', 'x1')
 
         # set up the grid on which to evaluate the likelihood
-        x_bins, y_bins =
-        x_bins = np.linspace(-10, 10, n_bins)
-        y_bins = np.linspace(-0.5, 0.5, n_bins)
+        x_bins, y_bins = self.get_x0_x1
 
         xx, yy = np.meshgrid(x_bins, y_bins)
         pos = np.vstack([xx.ravel(), yy.ravel()]).T
@@ -130,7 +145,8 @@ class Optimizer:
     @staticmethod
     def _get_chisquare(xdata, ydata, yerr, model_func, model_params,
                        f_args, make_plot=False):
-
+        """ Returns the chisquare goodness-of-fit metric
+        """
         chisq = -2 * Optimizer._lnlike(model_params, xdata, ydata, yerr, *f_args)
         print(chisq)
 
@@ -185,8 +201,7 @@ class Optimizer:
 
         # we don't care about the f0 parameter
         x_bins, y_bins = self.get_x0_x1
-        ln_prob = Optimizer._lngrid_from_trace(samples[:, 1:], self.par_limits[1:],
-                                               self.n_bins, make_plot)
+        ln_prob = self._lngrid_from_trace(samples[:, 1:], make_plot)
 
         np.savetxt('lnlike_%s.dat' % str(id), ln_prob)
 
