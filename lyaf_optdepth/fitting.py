@@ -6,8 +6,7 @@ import os
 from functools import partial
 from multiprocessing import Pool
 
-# from Scripts.mcmc_skewer import mcmcSkewer
-from Scripts.utils import xfm
+from lyaf_optdepth.utils import xfm
 from getdist import MCSamples
 
 

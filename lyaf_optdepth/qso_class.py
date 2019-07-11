@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import fitsio
 
 # local imports
-from Scripts import param_fit, config
+from lyaf_optdepth import param_fit, config
 
 
 class QSO:

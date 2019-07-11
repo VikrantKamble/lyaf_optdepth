@@ -8,7 +8,7 @@ from scipy.stats import binned_statistic
 from functools import partial
 
 # local imports
-from Scripts import corrections, create_comp, mcmc_skewer
+from lyaf_optdepth import corrections, create_comp, mcmc_skewer
 
 import importlib
 importlib.reload(create_comp)

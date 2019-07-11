@@ -1,11 +1,10 @@
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 # local imports
-from Scripts.bin_analyze import analyze
-from Scripts import config, helper, create_comp, corrections
+from lyaf_optdepth.bin_analyze import analyze
+from lyaf_optdepth import config, create_comp, corrections
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -203,16 +202,17 @@ class binObj:
         Only xi(r = 0) correlations used
         """
 
-        self.fake_spec = helper.fake_spec(truths, self._ivar, self._alpha,
-                                          self.wl, self._zq, pl_only=pl_only,
-                                          lss=lss)
+        # self.fake_spec = helper.fake_spec(truths, self._ivar, self._alpha,
+        #                                   self.wl, self._zq, pl_only=pl_only,
+        #                                   lss=lss)
 
-        if plotit:
-            rInd = np.random.randint(len(self), size=10)
+        # if plotit:
+        #     rInd = np.random.randint(len(self), size=10)
 
-            plt.figure()
-            plt.plot(self.wl, self.fake_spec[rInd].T, lw=0.3)
-            plt.show()
+        #     plt.figure()
+        #     plt.plot(self.wl, self.fake_spec[rInd].T, lw=0.3)
+        #     plt.show()
+        pass
 
     def test_fake(self, index, a_kwargs={}, s_kwargs={}):  # <--
         return analyze(self, test_fake=True, distort=False,

@@ -8,7 +8,7 @@ import fitsio
 import timeit
 import os
 
-from Scripts import config
+from lyaf_optdepth import config
 
 
 def main():

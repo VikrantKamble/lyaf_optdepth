@@ -1,7 +1,7 @@
 import numpy as np
 
 drqcat = "/uufs/astro.utah.edu/common/home/u0882817/" + \
-          "Work/OptDepth/Cat/DR12Q.fits"
+          "Work/lyaf_optdepth/data/DR12Q.fits"
 drq_dataext = 1
 
 COEFF0 = 2.73
@@ -14,13 +14,13 @@ paramstowrite = "PLATE, MJD, FIBERID, Z_PCA, Z_VI, ALPHA_NU," +\
 cat_file = "/uufs/astro.utah.edu/common/uuastro/astro_data/vikrant/cat/cat_sep16"
 
 skyline_file = "/uufs/astro.utah.edu/common/home/u0882817/" +\
-               "Work/OptDepth/Cat/dr9-sky-mask.txt"
+               "Work/lyaf_optdepth/data/dr9-sky-mask.txt"
 
 spec_dir = "/uufs/chpc.utah.edu/common/home/sdss00/ebosswork/eboss/" +\
            "spectro/redux/v5_10_0/spectra/lite"
 
 dla_file = "/uufs/astro.utah.edu/common/home/u0882817/Work/" +\
-           "OptDepth/Cat/DLA_DR12tmp_v1.dat"
+           "lyaf_optdepth/data/DLA_DR12tmp_v1.dat"
 
 drq_z = "Z_PCA"
 zmin = 1.6
