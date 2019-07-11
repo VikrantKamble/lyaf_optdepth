@@ -8,7 +8,8 @@ from astropy.convolution import convolve, Box1DKernel
 from astroML.plotting.mcmc import convert_to_stdev as cts
 
 # local imports
-from Scripts.utils import xfm, marg_estimates
+from lyaf_optdepth.utils import xfm, marg_estimates
+
 
 shift = np.array([-5.27, 3.21])
 tilt = np.array([[-0.8563,  0.5165], [0.5165,  0.8563]])
