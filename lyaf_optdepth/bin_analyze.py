@@ -8,11 +8,11 @@ from scipy.stats import binned_statistic
 from functools import partial
 
 # local imports
-from lyaf_optdepth import corrections, create_comp, mcmc_skewer
+from lyaf_optdepth import corrections, create_comp
 
 import importlib
 importlib.reload(create_comp)
-# from Scripts import comp_simple
+from Scripts import comp_simple
 
 
 def find_zbins(z, z_start=2.1, delta_z=None, min_num=50):
@@ -329,20 +329,21 @@ def analyze(binObj, task='skewer', frange=None, distort=True, CenAlpha=None,
         # Do not plot graphs while in parallel
         res = None
         if parallel:
-            print('Running in parallel now!')
+            pass
+        #     print('Running in parallel now!')
 
-            myfunc_partial = partial(mcmc_skewer.mcmcSkewer, **skewer_kwargs)
+        #     myfunc_partial = partial(mcmc_skewer.mcmcSkewer, **skewer_kwargs)
 
-            pool = Pool()
-            res = pool.map(myfunc_partial,
-                           zip(np.array([zMat, myspec, myivar]).T, skewer_index))
-            pool.close()
-            pool.join()
-        else:
-            for j, ele in enumerate(skewer_index):
-                res = mcmc_skewer.mcmcSkewer(
-                    [np.array([zMat[:, j], myspec[:, j], myivar[:, j]]).T, ele],
-                    **skewer_kwargs)
+        #     pool = Pool()
+        #     res = pool.map(myfunc_partial,
+        #                    zip(np.array([zMat, myspec, myivar]).T, skewer_index))
+        #     pool.close()
+        #     pool.join()
+        # else:
+        #     for j, ele in enumerate(skewer_index):
+        #         res = mcmc_skewer.mcmcSkewer(
+        #             [np.array([zMat[:, j], myspec[:, j], myivar[:, j]]).T, ele],
+        #             **skewer_kwargs)
 
         stop = timer()
         print('Time elapsed:', stop - start)

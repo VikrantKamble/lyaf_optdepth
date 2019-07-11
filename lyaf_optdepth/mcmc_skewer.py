@@ -7,7 +7,7 @@ from scipy.stats import binned_statistic
 from getdist import plots, MCSamples
 from astroML.plotting.mcmc import convert_to_stdev as cts
 
-from Scripts import helper
+from lyaf_optdepth.utils import xfm
 
 # global parameters
 binx = np.arange(2.0, 4.61, 0.05)
@@ -259,7 +259,7 @@ def mcmcSkewer(bundleObj, logdef=3, binned=False, niter=2500, do_mcmc=True,
             tg_est = list(map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                           zip(*np.percentile(samps, [16, 50, 84], axis=0))))
 
-            xx = helper.xfm(samps[:, 1:], shift, tilt, direction='up')
+            xx = xfm(samps[:, 1:], shift, tilt, direction='up')
             xx_est = list(map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
                           zip(*np.percentile(xx, [16, 50, 84], axis=0))))
 
@@ -390,7 +390,7 @@ def addLogs(fname, npix=200, sfx_lst=None, mod_ax=None, get_est=False,
                 # Cannot handle assymetric errorbars - so take the average
                 err0 = (e_cube[:, -2, 1] + e_cube[:, -2, 2]) / 2.
 
-                res0 = helper.get_corrfunc(e_cube[:, -2, 0], err0,
+                res0 = utils.get_corrfunc(e_cube[:, -2, 0], err0,
                                            model=True, est=True,
                                            sfx="x0_corr", scale_factor=2.24,
                                            viz=False)
@@ -399,7 +399,7 @@ def addLogs(fname, npix=200, sfx_lst=None, mod_ax=None, get_est=False,
                 print("With correlations: %.5f pm %.5f" % (res0[2], res0[3]))
 
                 err1 = (e_cube[:, -1, 1] + e_cube[:, -1, 2]) / 2.
-                res1 = helper.get_corrfunc(e_cube[:, -1, 0], err1,
+                res1 = utils.get_corrfunc(e_cube[:, -1, 0], err1,
                                            model=True, est=True,
                                            sfx="x1_corr", scale_factor=3.4,
                                            viz=False)
@@ -453,7 +453,7 @@ def addLogs(fname, npix=200, sfx_lst=None, mod_ax=None, get_est=False,
             fig, mod_ax = plt.subplots(1)
 
         print("Modified space estimates:")
-        res = helper.marg_estimates(x0_line, x1_line, joint_pdf,
+        res = utils.marg_estimates(x0_line, x1_line, joint_pdf,
                                     mod_ax, plot_marg, labels=["x_0", "x_1"],
                                     **kwargs)
         mu_x0, sig_x0, mu_x1, sig_x1, _ = res
@@ -476,7 +476,7 @@ def addLogs(fname, npix=200, sfx_lst=None, mod_ax=None, get_est=False,
                            [mu_x0 + 5 * sig_x0, mu_x1 - 5 * sig_x1],
                            [mu_x0 + 5 * sig_x0, mu_x1 + 5 * sig_x1]
                             ])
-        extents = helper.xfm(corners, shift, tilt, direction='down')
+        extents = utils.xfm(corners, shift, tilt, direction='down')
 
         extent_t0 = [extents[:, 0].min(), extents[:, 0].max()]
         extent_gamma = [extents[:, 1].min(), extents[:, 1].max()]
@@ -499,7 +499,7 @@ def addLogs(fname, npix=200, sfx_lst=None, mod_ax=None, get_est=False,
                                  extent_gamma[0]:extent_gamma[1]:501j]
 
         _point_orig = np.vstack([_tau0.ravel(), _gamma.ravel()]).T
-        _grid_in_mod = helper.xfm(_point_orig, shift, tilt, direction='up')
+        _grid_in_mod = utils.xfm(_point_orig, shift, tilt, direction='up')
 
         values_orig = _b.ev(_grid_in_mod[:, 0], _grid_in_mod[:, 1])
         values_orig = values_orig.reshape(_tau0.shape)
@@ -508,7 +508,7 @@ def addLogs(fname, npix=200, sfx_lst=None, mod_ax=None, get_est=False,
         print("Original space estimates:")
         if orig_ax is None:
             fig, orig_ax = plt.subplots(1)
-        helper.marg_estimates(_tau0[:, 0], _gamma[0], values_orig,
+        utils.marg_estimates(_tau0[:, 0], _gamma[0], values_orig,
                               orig_ax, plot_marg, labels=[r"\ln \tau_0", "\gamma"],
                               **kwargs)
 
