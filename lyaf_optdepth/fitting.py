@@ -64,6 +64,7 @@ class Optimizer:
         self.flux = flux
         self.ivar = ivar
         self.zlyaf = zlyaf
+        print("Dimensions of the data is", np.shape(flux))
 
     def set_data_from_zqso(self, flux, ivar, zqso, rest_wave):
         zlyaf = rest_wave * (1 + zqso[:, None]) / 1215.67 - 1
