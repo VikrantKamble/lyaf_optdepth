@@ -1,8 +1,84 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+from scipy.stats import chi2
+from matplotlib.patches import Ellipse
+from scipy.special import erf
 from astroML.plotting.mcmc import convert_to_stdev as cts
 from scipy.optimize import curve_fit
+
+
+def draw_ellipse(pos, cov, nsig=None, ax=None, label="temp",
+                 set_label=True, **kwrgs):
+    """
+    Plots an ellipse enclosing *volume* based on the specified covariance
+    matrix (*cov*) and location (*pos*). Additional keyword arguments are
+    passed on to the ellipse patch artist.
+
+    Parameters
+    ----------
+        cov : The 2x2 covariance matrix to base the ellipse on
+        pos : The location of the center of the ellipse. Expects a 2-element
+            sequence of [x0, y0].
+        volume : The volume inside the ellipse; defaults to 0.5
+        ax : The axis that the ellipse will be plotted on. Defaults to the
+            current axis.
+    """
+    def eigsorted(cov):
+        vals, vecs = np.linalg.eigh(cov)
+        order = vals.argsort()[::-1]
+        return vals[order], vecs[:, order]
+
+    if ax is None:
+        fig, ax = plt.subplots(1)
+    if nsig is None:
+        nsig = [1, 2]
+
+    vals, vecs = eigsorted(cov)
+    theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+    # Width and height are "full" widths, not radius
+    for ele in nsig:
+        scale = np.sqrt(chi2.ppf(erf(ele / np.sqrt(2)), df=2))
+        width, height = 2 * scale * np.sqrt(vals)
+        ellip = Ellipse(xy=pos, width=width, height=height, angle=theta, **kwrgs)
+
+        ax.add_artist(ellip)
+        ellip.set_clip_box(ax.bbox)
+
+    ellip.set_label(label)
+
+    # Limit the axes correctly to show the plots
+    ax.set_xlim(pos[0] - 2 * width, pos[0] + 2 * width)
+    ax.set_ylim(pos[1] - 2 * height, pos[1] + 2 * height)
+
+    if set_label:
+        ax.legend(handles=[plt.plot([], ls="-")[0]],
+                  labels=[ellip.get_label()])
+    return ax
+
+
+def fit_exp_model(y_pts, x_pts=None, ax=None, **kwargs):
+    """
+    Fit a simple exponential model to obtain the correlation
+    length
+    """
+    if x_pts is None:
+        x_pts = np.arange(len(y_pts))
+
+    def model_exp(x, cl):
+        return np.exp(- x / cl)
+
+    corr_length, _ = curve_fit(model_exp, x_pts, y_pts)
+
+    if ax is not None:
+        ax.plot(x_pts, y_pts, '-ok')
+        ax.plot(x_pts, model_exp(x_pts, corr_length), **kwargs)
+        ax.axhline(0, ls='--')
+        ax.set_xlabel(r"$|i-j|$")
+        ax.set_ylabel(r"$\xi(|i-j|)$")
+        plt.show()
+
+    return corr_length
 
 
 def xfm(pos, shift, tilt, direction='down'):
@@ -18,6 +94,90 @@ def xfm(pos, shift, tilt, direction='down'):
         return np.dot((pos - shift), tilt.T)
     elif direction == 'down':
         return np.dot(np.linalg.inv(tilt), pos.T).T + shift
+
+
+def get_corrfunc(x, x_err, y=None, y_err=None, n_frac=2, viz=True,
+                 model=False, est=False, sfx="corr", scale_factor=None):
+    """
+    Auto correlation of a signal and mean estimation
+
+    Parameters
+        x : samples of the first variable
+        x_err : error vector for the first variable
+        n_frac : number of pixels over which to estimate correlation wrt
+                 the size of the samples
+        viz : plot the correlation function
+        model : model the correlation function
+        est : Get estimates on the best-fit values using the covariance
+              matrices estmated
+
+    Returns:
+        loc_simple, sig_simple : the mean and uncertainty using simple
+                                 weighted estimation
+        loc, sig : the mean and uncertainty on the location parameter
+                   after incorporating correlations
+    """
+    if y is None:
+        y = x.copy()
+        y_err = x_err.copy()
+
+    # Direct weighted average along each dimension
+    loc_simple = np.sum(x / x_err ** 2) / np.sum(1 / x_err ** 2)
+    sig_simple = 1. / np.sqrt(np.sum(1 / x_err ** 2))
+
+    npp = len(x)
+    x_data, y_data = x - x.mean(), y - y.mean()
+
+    coef = [np.sum(x_data[:npp - j] * y_data[j:]) / \
+            np.sqrt(np.sum(x_data[:npp - j] ** 2) * np.sum(y_data[j:] ** 2)) for j in
+            range(npp // n_frac)]
+    np.savetxt(sfx + ".dat", coef)
+
+    if model:
+        if scale_factor is None:
+            scale_factor = fit_exp_model(coef[:5])
+
+        if est:
+            # Obtain band-diagonal correlation matrix
+            from scipy.linalg import toeplitz
+
+            rr = np.arange(npp)
+            val = np.exp(- rr / scale_factor)
+            Xi = toeplitz(val)
+
+            cov = np.diag(x_err).dot(Xi.dot(np.diag(y_err)))
+
+            if np.any(np.linalg.eigh(cov)[0] < 0):
+                raise TypeError("The covariance matrix \
+                                 is not positive definite")
+
+            # Minimization using iminuit
+            from iminuit import Minuit
+            ico = np.linalg.inv(cov)
+
+            def chi2(mu):
+                dyi = x - mu
+                return dyi.T.dot(ico.dot(dyi))
+
+            mm = Minuit(chi2,
+                        mu=0.2, error_mu=x.std(), fix_mu=False,
+                        errordef=1., print_level=-1)
+            mm.migrad()
+            loc, sig = mm.values["mu"], mm.errors["mu"]
+
+            if viz:
+                fig, ax = plt.subplots(figsize=(9, 3))
+                ax.errorbar(rr, x, x_err, fmt='.-', lw=0.6, color='k')
+
+                # estimate including correlations
+                ax.fill_between(rr, loc + sig,
+                                loc - sig, color='r', alpha=0.4)
+
+                # simple weighted average estimate
+                ax.fill_between(rr, loc_simple + sig_simple,
+                                loc_simple - sig_simple, color='b', alpha=0.4)
+                plt.show()
+            return loc_simple, sig_simple, loc, sig
 
 
 def marg_estimates(xx, yy, logL, levels=None, par_labels=["x_0", "x_1"],
@@ -92,219 +252,6 @@ def marg_estimates(xx, yy, logL, levels=None, par_labels=["x_0", "x_1"],
     return mu_x0, sig_x0, mu_x1, sig_x1, sig_x0_x1
 
 
-def combine_likelihoods(folder_name, indices, xx, yy, ax=None,
-                        individual=False, **kwargs):
-    """ Computes the combined likelihood surface for a given set of
-    restframe wavelength indices
-
-    Parameters:
-        folder_name: folder containing the individual likelihoods
-        indices: which restframe wavelengths to use
-        xx: the x vector of the grid
-        yy: the y vector of the grid
-        ax: axes object to draw the figure on
-        individual: whether to draw contours for each wavelength
-
-    Returns:
-        ax: handle on the axes object for future manipulation
-        joint_estimates: Gaussian estimates of the likelihood surface
-    """
-    if ax is None:
-        ax = plt.axes()
-
-    joint_lnlike = np.zeros((len(xx), len(yy)))
-
-    for index in indices:
-        ll = np.loadtxt(folder_name + 'lnlike_%s.dat' % str(index))
-        if individual:
-            marg_estimates(xx, yy, ll.T, ax=ax,
-                           plot_marg=False, levels=[0.683], label=str(index),
-                           colors='k')
-        joint_lnlike += ll
-    joint_lnlike -= joint_lnlike.max()
-
-    np.savetxt('joint_pdf.dat', joint_lnlike)
-
-    # Remember: Here we are modeling the combined likelihood in x0-x1 as
-    # a 2D Gaussian - these are the actual values used for the statistical
-    # estiamtes before applying the stretch corrections due to LSS
-    joint_estimates = marg_estimates(xx, yy, joint_lnlike.T, ax=ax,
-                                     label='joint', **kwargs)
-
-    return ax, joint_estimates
-
-
-def get_stretch_factor(folder_name, indices):
-    """ Computes the stretch factor using the (16-50-84) percentile estimates
-    of x0 - x1 for each restframe wavelength assuming orthogonality
-
-    Parameters:
-        folder_name: folder containing the individual likelihoods and their
-                     percentile estimates
-        indices:  which restframe wavelengths to use
-
-    Returns:
-        stretch_x0, stretch_x1: the stretch factors along x0 and x1
-    """
-    x0_cen = np.zeros(len(indices))
-    x0_err = np.zeros(len(indices))
-    x1_cen = np.zeros(len(indices))
-    x1_err = np.zeros(len(indices))
-
-    for i, index in enumerate(indices):
-        _, est_x0, est_x1 = np.loadtxt('xx_percentile_est_%d.dat' % index)
-
-        x0_cen[i] = est_x0[0]
-        x0_err[i] = (est_x0[1] + est_x0[2]) / 2.
-
-        x1_cen[i] = est_x1[0]
-        x1_err[i] = (est_x1[1] + est_x1[2]) / 2.
-
-    res0 = get_corrfunc(x0_cen, x0_err, model=True, est=True,
-                        sfx="x0_corr")
-    res1 = get_corrfunc(x1_cen, x1_err, model=True, est=True,
-                        sfx="x1_corr")
-    stretch_x0 = res0[1] / res0[3]
-    stretch_x1 = res1[1] / res1[3]
-
-    return stretch_x0,  stretch_x1
-
-
-def plot_percentile_estimates(folder_name, indices, basis='mod'):
-    """ Plots the (16-50-84) percentile estimates
-    of x0 - x1 for each restframe wavelength assuming orthogonality
-
-    Parameters:
-        folder_name: folder containing the individual likelihoods and their
-                     percentile estimates
-        indices:  which restframe wavelengths to use
-
-    Returns:
-        axs: handle to the axes object
-    """
-    if basis == 'mod':
-        n_params = 3
-        prefix = folder_name + 'xx_percentile_est_'
-    else:
-        n_params = 2
-        prefix = folder_name + 'tg_percentile_est_'
-
-    e_cube = np.empty((len(indices), n_params, 3))
-    for i, index in enumerate(indices):
-        e_cube[i] = np.loadtxt(prefix + '%d.dat' % index)
-
-    fig, axs = plt.subplots(nrows=n_params, sharex=True)
-
-    for i in range(n_params):
-        axs[i].errorbar(indices, e_cube[:, i, 0], yerr=[e_cube[:, i, 2], e_cube[:, i, 1]],
-                        fmt='.-', color='k', lw=0.6)
-    plt.tight_layout()
-    plt.show()
-
-    return axs
-
-
-def get_corrfunc(x, x_err=None, y=None, y_err=None, n_frac=2, viz=True,
-                 model=False, est=False, sfx="corr", scale_factor=None):
-    """
-    Auto correlation of a signal and mean estimation
-
-    Parameters
-        x : samples of the first variable
-        x_err : error vector for the first variable
-        n_frac : number of pixels over which to estimate correlation wrt
-                 the size of the samples
-        viz : plot the correlation function
-        model : model the correlation function
-        est : Get estimates on the best-fit values using the covariance
-              matrices estmated
-
-    Returns:
-        loc_simple, sig_simple : the mean and uncertainty using simple
-                                 weighted estimation
-        loc, sig : the mean and uncertainty on the location parameter
-                   after incorporating correlations
-    """
-    if y is None:
-        y = x.copy()
-        y_err = x_err.copy()
-
-    # Direct weighted average along each dimension
-    loc_simple = np.sum(x / x_err ** 2) / np.sum(1 / x_err ** 2)
-    sig_simple = 1. / np.sqrt(np.sum(1 / x_err ** 2))
-
-    npp = len(x)
-    x_data, y_data = x - x.mean(), y - y.mean()
-
-    coef = [np.sum(x_data[:npp - j] * y_data[j:]) / \
-            np.sqrt(np.sum(x_data[:npp - j] ** 2) * np.sum(y_data[j:] ** 2)) for j in
-            range(npp // n_frac)]
-    np.savetxt(sfx + ".dat", coef)
-
-    if viz:
-        fig, ax = plt.subplots(1)
-        ax.plot(coef, '-k')
-        ax.axhline(0, ls='--')
-        ax.set_xlabel(r"$|i-j|$")
-        ax.set_ylabel(r"$\xi(|i-j|)$")
-
-    if model:
-        def model_exp(x, cl):
-            return np.exp(- x / cl)  # A simple exponential model
-
-        if scale_factor is None:
-            popt_exp, __ = curve_fit(model_exp, np.arange(npp // n_frac)[:5],
-                                     coef[:5])
-        else:
-            popt_exp = [scale_factor]
-
-        if viz:
-            rr = np.linspace(0, 50, 500)
-            val = model_exp(rr, *popt_exp)
-            ax.plot(rr, val, '-r')
-            ax.text(10, 0.8, "$r_{x_0}=%.1f$" % popt_exp[0])
-            ax.set_xlim(0, 50)
-
-        if est:
-            if x_err is None:
-                raise TypeError("Requires errorbars on the samples")
-
-            # Obtain band-diagonal correlation matrix
-            from scipy.linalg import toeplitz
-
-            rr = np.arange(npp)
-            val = model_exp(rr, *popt_exp)
-            Xi = toeplitz(val)
-
-            cov = np.diag(x_err).dot(Xi.dot(np.diag(y_err)))
-
-            if np.any(np.linalg.eigh(cov)[0] < 0):
-                raise TypeError("The covariance matrix \
-                                 is not positive definite")
-
-            # Minimization using iminuit
-            from iminuit import Minuit
-            ico = np.linalg.inv(cov)
-
-            def chi2(mu):
-                dyi = x - mu
-                return dyi.T.dot(ico.dot(dyi))
-
-            mm = Minuit(chi2,
-                        mu=0.2, error_mu=x.std(), fix_mu=False,
-                        errordef=1., print_level=-1)
-            mm.migrad()
-            loc, sig = mm.values["mu"], mm.errors["mu"]
-
-            if viz:
-                fig, ax = plt.subplots(figsize=(9, 3))
-                ax.errorbar(rr, x, x_err, fmt='.-', lw=0.6, color='k')
-                ax.fill_between(rr, loc + sig,
-                                loc - sig, color='r', alpha=0.2)
-                plt.show()
-            return loc_simple, sig_simple, loc, sig
-
-
 def get_intrinsic_covariance(locs, covs):
     """ Computes the intrinsic covariance matrix in 2D
 
@@ -374,11 +321,152 @@ def get_intrinsic_covariance(locs, covs):
 
     return loc, cov, sys_cov, one_sig, two_sig
 
+
+# =============================================================================
+def combine_likelihoods(folder_name, indices, xx, yy, ax=None,
+                        individual=False, **kwargs):
+    """ Computes the combined likelihood surface for a given set of
+    restframe wavelength indices
+
+    Parameters:
+        folder_name: folder containing the individual likelihoods
+        indices: which restframe wavelengths to use
+        xx: the x vector of the grid
+        yy: the y vector of the grid
+        ax: axes object to draw the figure on
+        individual: whether to draw contours for each wavelength
+
+    Returns:
+        ax: handle on the axes object for future manipulation
+        joint_estimates: Gaussian estimates of the likelihood surface
+    """
+    if ax is None:
+        ax = plt.axes()
+
+    joint_lnlike = np.zeros((len(xx), len(yy)))
+
+    for index in indices:
+        ll = np.loadtxt(folder_name + 'lnlike_%s.dat' % str(index))
+        if individual:
+            marg_estimates(xx, yy, ll.T, ax=ax,
+                           plot_marg=False, levels=[0.683], label=str(index),
+                           colors='k')
+        joint_lnlike += ll
+    joint_lnlike -= joint_lnlike.max()
+
+    np.savetxt(folder_name + 'joint_pdf.dat', joint_lnlike)
+
+    # Remember: Here we are modeling the combined likelihood in x0-x1 as
+    # a 2D Gaussian - these are the actual values used for the statistical
+    # estiamtes before applying the stretch corrections due to LSS
+    joint_estimates = marg_estimates(xx, yy, joint_lnlike.T, ax=ax,
+                                     label='joint', **kwargs)
+
+    return ax, joint_estimates
+
+
+def get_stretch_factor(folder_name, indices, **kwargs):
+    """ Computes the stretch factor using the (16-50-84) percentile estimates
+    of x0 - x1 for each restframe wavelength assuming orthogonality
+
+    Parameters:
+        folder_name: folder containing the individual likelihoods and their
+                     percentile estimates
+        indices:  which restframe wavelengths to use
+
+    Returns:
+        stretch_x0, stretch_x1: the stretch factors along x0 and x1
+    """
+    x0_cen = np.zeros(len(indices))
+    x0_err = np.zeros(len(indices))
+    x1_cen = np.zeros(len(indices))
+    x1_err = np.zeros(len(indices))
+
+    for i, index in enumerate(indices):
+        _, est_x0, est_x1 = np.loadtxt(folder_name + \
+                                       'xx_percentile_est_%d.dat' % index)
+
+        x0_cen[i] = est_x0[0]
+        x0_err[i] = (est_x0[1] + est_x0[2]) / 2.
+
+        x1_cen[i] = est_x1[0]
+        x1_err[i] = (est_x1[1] + est_x1[2]) / 2.
+
+    res0 = get_corrfunc(x0_cen, x0_err, model=True, est=True,
+                        sfx=folder_name + "x0_corr")
+    res1 = get_corrfunc(x1_cen, x1_err, model=True, est=True,
+                        sfx=folder_name + "x1_corr")
+    stretch_x0 = res0[3] / res0[1]
+    stretch_x1 = res1[3] / res1[1]
+
+    return stretch_x0,  stretch_x1
+
+
+def plot_percentile_estimates(folder_name, indices, basis='mod'):
+    """ Plots the (16-50-84) percentile estimates
+    of x0 - x1 for each restframe wavelength assuming orthogonality
+
+    Parameters:
+        folder_name: folder containing the individual likelihoods and their
+                     percentile estimates
+        indices:  which restframe wavelengths to use
+
+    Returns:
+        axs: handle to the axes object
+    """
+    if basis == 'mod':
+        n_params = 3
+        prefix = folder_name + 'xx_percentile_est_'
+    else:
+        n_params = 2
+        prefix = folder_name + 'tg_percentile_est_'
+
+    e_cube = np.empty((len(indices), n_params, 3))
+    for i, index in enumerate(indices):
+        e_cube[i] = np.loadtxt(prefix + '%d.dat' % index)
+
+    fig, axs = plt.subplots(nrows=n_params, sharex=True)
+
+    for i in range(n_params):
+        axs[i].errorbar(indices, e_cube[:, i, 0], yerr=[e_cube[:, i, 2], e_cube[:, i, 1]],
+                        fmt='.-', color='k', lw=0.6)
+    plt.tight_layout()
+    plt.show()
+
+    return axs
+
+
+def get_statistical_estimate(folder_name, indices, xx, yy,
+                             with_corr=False, **kwargs):
+    """
+    Obtain statistical estimates on the optical depth parameters for a
+    given folder with and without correlations
+    """
+    _, estimates_no_stretch = combine_likelihoods(folder_name,
+                                                  indices, xx, yy, **kwargs)
+    mu_x0, sig_x0, mu_x1, sig_x1, sig_x0_x1 = estimates_no_stretch
+
+    loc_vec = np.array([mu_x0, mu_x1])
+    cov_mat = np.array([[sig_x0 ** 2, sig_x0_x1],
+                        [sig_x0_x1, sig_x1 ** 2]])
+
+    if with_corr:
+        # stretch factor
+        st_x0, st_x1 = get_stretch_factor(folder_name, indices, **kwargs)
+
+        # expand the confidence intervals
+        st_mat = np.diag([st_x0, st_x1])
+        cov_new = st_mat.T.dot(cov_mat.dot(st_mat))
+
+        return loc_vec, cov_mat, cov_new
+
+    return loc_vec, cov_mat
+
 # =============================================================================
 # THE ROUTINES BELOW SHOULD ONLY BE RUN FROM THE CORRECT FOLDER
 
 
-def get_statistical_estimates(template, indices, xx, yy, n_bins=7):
+def save_statistical_estimates(template, indices, xx, yy, n_bins=7):
     # These are obtained from the full 2D likelihood surfaces
     loc_mod = np.zeros((n_bins, 2))
     cov_mod_no_stretch = np.zeros((n_bins, 2, 2))
@@ -389,23 +477,8 @@ def get_statistical_estimates(template, indices, xx, yy, n_bins=7):
         # statistical likelihoods without LSS correlations
         folder_name = template.format(i+1)
 
-        _, estimates_no_stretch = combine_likelihoods(folder_name,
-                                                      indices, xx, yy)
-        mu_x0, sig_x0, mu_x1, sig_x1, sig_x0_x1 = estimates_no_stretch
-
-        loc_vec = np.array([mu_x0, mu_x1])
-        cov_mat = np.array([[sig_x0 ** 2, sig_x0_x1],
-                            [sig_x0_x1, sig_x1 ** 2]])
-
-        # stretch factor
-        res = get_stretch_factor(folder_name, indices)
-
-        st_x0 = res[0][1] / res[0][3]
-        st_x1 = res[1][1] / res[1][3]
-
-        # expand the confidence intervals
-        st_mat = np.diag([st_x0, st_x1])
-        cov_new = st_mat.T.dot(cov_mat.dot(st_mat))
+        results = get_statistical_estimate(folder_name, indices, xx, yy)
+        loc_vec, cov_mat, cov_new = results
 
         # Assign to variables to store later
         loc_mod[i] = loc_vec
@@ -421,7 +494,7 @@ def get_statistical_estimates(template, indices, xx, yy, n_bins=7):
                cov_mod_with_stretch.reshape(n_bins, 4))
 
 
-def get_systematic_estimates(template, bins_to_use=None):
+def save_systematic_estimates(template, bins_to_use=None):
     if bins_to_use is None:
         bins_to_use = np.arange(7)
 

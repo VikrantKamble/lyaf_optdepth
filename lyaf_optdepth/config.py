@@ -1,5 +1,6 @@
 import numpy as np
 
+
 drqcat = "/Users/vikrant/Work/MyProject/OptDepth/Data/DR12Q.fits"
 drq_dataext = 1
 

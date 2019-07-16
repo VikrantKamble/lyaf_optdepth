@@ -103,4 +103,4 @@ ENV/
 
 data/
 bin/likelihoods/
-lyaf_optdepth/config.py
+config.py

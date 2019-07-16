@@ -13,7 +13,7 @@ from getdist import MCSamples
 
 class Optimizer:
     def __init__(self, shift=None, tilt=None, n_mcmc=5000,
-                 burn_frac=40, n_walkers=50, par_limits=None, n_bins=100):
+                 burn_frac=40, n_walkers=50, par_limits=None, n_bins=200):
 
         """ Basic fitting class for optical depth parameter estimation
 
@@ -148,7 +148,7 @@ class Optimizer:
         """ Returns the chisquare goodness-of-fit metric
         """
         chisq = -2 * Optimizer._lnlike(model_params, xdata, ydata, yerr, *f_args)
-        print(chisq)
+        print(chisq, len(xdata))
 
         if make_plot:
             plt.figure()

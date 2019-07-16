@@ -67,62 +67,6 @@ def contour_transform(x0, x1, joint_pdf):
     return tau0, gamma, values_orig
 
 
-def plot_ellipse(pos, cov, nsig=None, ax=None, label="temp",
-                 set_label=True, **kwrgs):
-    """
-    Plots an ellipse enclosing *volume* based on the specified covariance
-    matrix (*cov*) and location (*pos*). Additional keyword arguments are
-    passed on to the ellipse patch artist.
-
-    Parameters
-    ----------
-        cov : The 2x2 covariance matrix to base the ellipse on
-        pos : The location of the center of the ellipse. Expects a 2-element
-            sequence of [x0, y0].
-        volume : The volume inside the ellipse; defaults to 0.5
-        ax : The axis that the ellipse will be plotted on. Defaults to the
-            current axis.
-    """
-
-    from scipy.stats import chi2
-    from matplotlib.patches import Ellipse
-    from scipy.special import erf
-
-    def eigsorted(cov):
-        vals, vecs = np.linalg.eigh(cov)
-        order = vals.argsort()[::-1]
-        return vals[order], vecs[:, order]
-
-    if ax is None:
-        ax = plt.gca()
-    if nsig is None:
-        nsig = [1]
-
-    vals, vecs = eigsorted(cov)
-    theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
-
-    # Width and height are "full" widths, not radius
-    for ele in nsig:
-        scale = np.sqrt(chi2.ppf(erf(ele / np.sqrt(2)), df=2))
-        width, height = 2 * scale * np.sqrt(vals)
-        ellip = Ellipse(xy=pos, width=width, height=height, angle=theta, **kwrgs)
-
-        ax.add_artist(ellip)
-        ellip.set_clip_box(ax.bbox)
-
-    # if label is None:
-    #     label = "temp"
-    # ellip.set_label(label)
-    # Limit the axes correctly to show the plots
-    ax.set_xlim(pos[0] - 2 * width, pos[0] + 2 * width)
-    ax.set_ylim(pos[1] - 2 * height, pos[1] + 2 * height)
-
-    # if set_label:
-    #     ax.legend(handles=[plt.plot([],ls="-")[0]],
-    #               labels=[ellip.get_label()])
-    return ellip
-
-
 def plotcomp(myfile, suffix=None, nskip=1, conf_int=False,
              ratio_range=None, alpha_fit=None):
     """
